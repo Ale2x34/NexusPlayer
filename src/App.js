@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import Login from "./components/Login";      // Utilise bien le nouveau Login
+import Login from "./components/Login"; // Assure-toi que c'est bien le nouveau Login avec m3u + xtream
 import Home from "./Home";
 import { getFavorites, getHistory, setFavorites, setHistory } from "./utils/storage";
 
@@ -16,13 +16,10 @@ export default function App() {
   useEffect(() => { setFavorites(favorites); }, [favorites]);
   useEffect(() => { setHistory(history); }, [history]);
 
-  // ----- NOUVEAU : callback unique pour Xtream ET M3U
   const handleLogin = async (params) => {
     setLoading(true);
 
-    // Cas Lien M3U
     if (params.mode === "m3u") {
-      // params.channels contient déjà la liste des chaînes parsées !
       setUser({
         host: "",
         username: "",
@@ -37,58 +34,67 @@ export default function App() {
       return;
     }
 
-    // Cas Xtream (identique à avant)
     const host = params.url, username = params.user, password = params.pass;
-    const res = await fetch(buildApiUrl(host, username, password, "user_info"));
-    const info = await res.json();
-    if (!info.user_info || info.user_info.status !== "Active") throw new Error("Compte Xtream inactif");
+    try {
+      const res = await fetch(buildApiUrl(host, username, password, "user_info"));
+      const info = await res.json();
 
-    const catsRes = await fetch(buildApiUrl(host, username, password, "get_live_categories"));
-    const liveCategories = await catsRes.json();
+      if (!info.user_info || info.user_info.status !== "Active") {
+        setLoading(false);
+        throw new Error("Compte Xtream inactif");
+      }
 
-    const liveRes = await fetch(buildApiUrl(host, username, password, "get_live_streams"));
-    const live = await liveRes.json();
+      const catsRes = await fetch(buildApiUrl(host, username, password, "get_live_categories"));
+      const liveCategories = await catsRes.json();
 
-    const liveWithCat = live.map(c => ({
-      ...c,
-      category_name:
-        (liveCategories.find(cat => cat.category_id === c.category_id) || {}).category_name || "Autres",
-    }));
+      const liveRes = await fetch(buildApiUrl(host, username, password, "get_live_streams"));
+      const live = await liveRes.json();
 
-    const filmCatsRes = await fetch(buildApiUrl(host, username, password, "get_vod_categories"));
-    const filmCategories = await filmCatsRes.json();
+      const liveWithCat = live.map(c => ({
+        ...c,
+        category_name:
+          (liveCategories.find(cat => cat.category_id === c.category_id) || {}).category_name || "Autres",
+      }));
 
-    const filmsRes = await fetch(buildApiUrl(host, username, password, "get_vod_streams"));
-    const films = await filmsRes.json();
+      const filmCatsRes = await fetch(buildApiUrl(host, username, password, "get_vod_categories"));
+      const filmCategories = await filmCatsRes.json();
 
-    const filmsWithCat = films.map(f => ({
-      ...f,
-      category_name:
-        (filmCategories.find(cat => cat.category_id === f.category_id) || {}).category_name || "Autres",
-    }));
+      const filmsRes = await fetch(buildApiUrl(host, username, password, "get_vod_streams"));
+      const films = await filmsRes.json();
 
-    const seriesCatsRes = await fetch(buildApiUrl(host, username, password, "get_series_categories"));
-    const seriesCategories = await seriesCatsRes.json();
+      const filmsWithCat = films.map(f => ({
+        ...f,
+        category_name:
+          (filmCategories.find(cat => cat.category_id === f.category_id) || {}).category_name || "Autres",
+      }));
 
-    const seriesRes = await fetch(buildApiUrl(host, username, password, "get_series"));
-    const series = await seriesRes.json();
+      const seriesCatsRes = await fetch(buildApiUrl(host, username, password, "get_series_categories"));
+      const seriesCategories = await seriesCatsRes.json();
 
-    const seriesWithCat = series.map(s => ({
-      ...s,
-      category_name:
-        (seriesCategories.find(cat => cat.category_id === s.category_id) || {}).category_name || "Autres",
-    }));
+      const seriesRes = await fetch(buildApiUrl(host, username, password, "get_series"));
+      const series = await seriesRes.json();
 
-    setUser({
-      host,
-      username,
-      password,
-      live: liveWithCat,
-      films: filmsWithCat,
-      series: seriesWithCat,
-      mode: "xtream"
-    });
-    setLoading(false);
+      const seriesWithCat = series.map(s => ({
+        ...s,
+        category_name:
+          (seriesCategories.find(cat => cat.category_id === s.category_id) || {}).category_name || "Autres",
+      }));
+
+      setUser({
+        host,
+        username,
+        password,
+        live: liveWithCat,
+        films: filmsWithCat,
+        series: seriesWithCat,
+        mode: "xtream",
+        user_info: info.user_info, // IMPORTANT : on stocke user_info ici
+      });
+      setLoading(false);
+    } catch (e) {
+      setLoading(false);
+      alert(e.message || "Erreur lors de la connexion");
+    }
   };
 
   if (!user) return <Login onLogin={handleLogin} loading={loading} />;
@@ -104,3 +110,4 @@ export default function App() {
     />
   );
 }
+

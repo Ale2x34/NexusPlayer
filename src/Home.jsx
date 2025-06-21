@@ -23,6 +23,16 @@ function isHist(item, hist, mode) {
   return hist.some(h => h.stream_id === item.stream_id);
 }
 
+// Fonction calculant le nombre de jours restants
+function getRemainingDays(user_info) {
+  if (!user_info || !user_info.exp_date) return null;
+  const expDate = new Date(user_info.exp_date);
+  if (isNaN(expDate)) return null;
+  const now = new Date();
+  const diffMs = expDate.getTime() - now.getTime();
+  return diffMs > 0 ? Math.floor(diffMs / (1000 * 60 * 60 * 24)) : 0;
+}
+
 export default function Home({ user, onLogout, favorites, setFavorites, history, setHistory }) {
   const [tab, setTab] = useState("direct");
   const [selected, setSelected] = useState(null);
@@ -30,9 +40,8 @@ export default function Home({ user, onLogout, favorites, setFavorites, history,
   const [search, setSearch] = useState("");
   const [cat, setCat] = useState("Toutes");
 
-  const { host, username, password, live, films, series, mode } = user;
+  const { host, username, password, live, films, series, mode, user_info } = user;
 
-  // Tabs : M3U = juste "Direct", le reste vide
   const tabs =
     mode === "m3u"
       ? [
@@ -48,7 +57,6 @@ export default function Home({ user, onLogout, favorites, setFavorites, history,
           { key: "history", label: "Continuer" },
         ];
 
-  // --- Listes de contenus :
   let currentList =
     tab === "direct"
       ? live
@@ -62,10 +70,8 @@ export default function Home({ user, onLogout, favorites, setFavorites, history,
       ? history
       : [];
 
-  // --- Catégories par group-title ou category_name selon le mode
   const categories = getCategories(currentList, mode);
 
-  // --- Filtrage catégories et recherche (M3U : group, Xtream : category_name)
   const filtered = currentList.filter(item => {
     const itemCat = mode === "m3u" ? item.group : item.category_name;
     const catMatch = cat === "Toutes" || (itemCat || "Autres").toLowerCase() === cat.toLowerCase();
@@ -73,19 +79,16 @@ export default function Home({ user, onLogout, favorites, setFavorites, history,
     return catMatch && searchMatch;
   });
 
-  // --- Génération URL pour le lecteur (selon type)
   function getUrl(item, type = tab) {
     if (!item) return "";
-    if (item.url) return item.url; // M3U ou VOD/Série avec .url
+    if (item.url) return item.url;
     if (type === "direct" || item.stream_type === "live")
       return `${host}/live/${username}/${password}/${item.stream_id}.m3u8`;
     if (type === "films" || item.stream_type === "movie")
       return `${host}/movie/${username}/${password}/${item.stream_id}.mp4`;
-    // Série : chaque épisode a déjà un .url, voir DetailModal
     return "";
   }
 
-  // --- Favoris toggle
   function toggleFav(item) {
     if (mode === "m3u") {
       if (favorites.some(f => f.url === item.url))
@@ -98,7 +101,6 @@ export default function Home({ user, onLogout, favorites, setFavorites, history,
     }
   }
 
-  // --- Historique "Continuer à regarder"
   function addHistory(item) {
     if (mode === "m3u") {
       const idx = history.findIndex(h => h.url === item.url);
@@ -111,14 +113,20 @@ export default function Home({ user, onLogout, favorites, setFavorites, history,
       let newHist = [...history];
       if (idx > -1) newHist.splice(idx, 1);
       newHist.unshift({ ...item, lastWatch: Date.now() });
-      setHistory(newHist.slice(0, 15)); // max 15
+      setHistory(newHist.slice(0, 15));
     }
   }
+
+  // Calcule les jours restants
+  const remainingDays = getRemainingDays(user_info);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-neutral-900 via-neutral-950 to-black">
       <Navbar onLogout={onLogout} appName="NexusPlayerIPTV" />
-      <div className="flex flex-col px-6 mt-8">
+      <div className="px-6 mt-6 text-white font-semibold text-lg">
+        Temps restant du compte : {remainingDays !== null ? remainingDays + " jour(s)" : "Indisponible"}
+      </div>
+      <div className="flex flex-col px-6 mt-4">
         {/* Onglets + Animations */}
         <div className="flex space-x-8 mb-8 text-2xl font-bold">
           {tabs.map(t => (
@@ -182,7 +190,6 @@ export default function Home({ user, onLogout, favorites, setFavorites, history,
               isM3U: mode === "m3u"
             }))}
             onSelect={item => {
-              // Pour direct et films, on peut ouvrir direct. Pour séries Xtream, on force DétailModal
               if (tab === "series" && !item.url && mode !== "m3u") setShowDetail(item);
               else {
                 addHistory(item);
