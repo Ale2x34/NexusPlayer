@@ -17,12 +17,6 @@ function isFav(item, favs, mode) {
   return favs.some(f => f.stream_id === item.stream_id);
 }
 
-// Historique idem
-function isHist(item, hist, mode) {
-  if (mode === "m3u") return hist.some(h => h.url === item.url);
-  return hist.some(h => h.stream_id === item.stream_id);
-}
-
 // Fonction calculant le nombre de jours restants
 function getRemainingDays(user_info) {
   if (!user_info || !user_info.exp_date) return null;
@@ -117,7 +111,6 @@ export default function Home({ user, onLogout, favorites, setFavorites, history,
     }
   }
 
-  // Calcule les jours restants
   const remainingDays = getRemainingDays(user_info);
 
   return (
